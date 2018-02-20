@@ -19,39 +19,48 @@
 // NOTE The load parameter points to the function, which prepares the
 //      environment for each module and runs its code. Scroll down to the end of
 //      the file to see the function definition.
+
+// NOTE This library has been modified to remember the baseURL and context path
+// from the first call the provides these.
 (function() {
   "use strict";
 
   var cache = Object.create(null);
-  var root = (new URL("./node_modules/", location.href)).href;
+  var root = undefined;
+  var basePath = undefined;
 
   function load(id, pwd, asyn) {
+    if (pwd && !root) { // we don't know the root URL so we'll take it from the first request
+      root = pwd;
+      basePath = root.pathname.substring(1);
+    }
     var matches, href, cached, request;
     // NOTE resolve href from id
     matches = id.match(/^((\.)?.*\/|)(.[^.]*|)(\..*|)$/);
+    var prefixPath = matches[1][0] == '.' ? "" : basePath; // leave relative URLs
     href = (new URL(
-      matches[1] + matches[3] + (matches[3] && (matches[4] || ".js")),
-      matches[2] ? pwd : root
+        prefixPath + matches[1] + matches[3] + (matches[3] && (matches[4] || ".js")),
+        matches[2] ? pwd : root
     )).href;
     // NOTE create cache item if required
     cached = cache[href] = cache[href] || {
-      e: undefined, // error
-      m: { // module
-        children: undefined,
-        exports: undefined,
-        filename: href,
-        id: href,
-        loaded: false,
-        parent: undefined,
-        paths: [root],
-        require: undefined,
-        uri: href
-      },
-      p: undefined, // promise
-      r: undefined, // request
-      s: undefined, // source
-      t: undefined // type
-    };
+          e: undefined, // error
+          m: { // module
+            children: undefined,
+            exports: undefined,
+            filename: href,
+            id: href,
+            loaded: false,
+            parent: undefined,
+            paths: [root],
+            require: undefined,
+            uri: href
+          },
+          p: undefined, // promise
+          r: undefined, // request
+          s: undefined, // source
+          t: undefined // type
+        };
     if (!cached.p) {
       cached.p = new Promise(function(res, rej) {
         request = cached.r = new XMLHttpRequest();
@@ -125,8 +134,8 @@
     if (!cached.m.exports) {
       module = cached.m;
       module.children = new Array(),
-      module.exports = Object.create(null),
-      module.parent = parent;
+          module.exports = Object.create(null),
+          module.parent = parent;
       module.require = factory(module);
       if (parent)
         parent.children.push(module);
@@ -134,8 +143,8 @@
         module.exports = JSON.parse(cached.s);
       else
         (new Function(
-          "exports,require,module,__filename,__dirname",
-          cached.s + "\n//# sourceURL=" + module.uri
+            "exports,require,module,__filename,__dirname",
+            cached.s + "\n//# sourceURL=" + module.uri
         ))(module.exports, module.require, module, module.uri, module.uri.match(/.*\//)[0]);
       module.loaded = true;
     }
@@ -161,10 +170,10 @@
       if (!pwd)
         pwd = parent ? parent.uri : location.href;
       return asyn ?
-        new Promise(function(res, rej) {
-          load(id, pwd, asyn).p.then(afterLoad).then(res, rej);
-        }):
-        afterLoad(load(id, pwd, asyn));
+          new Promise(function(res, rej) {
+            load(id, pwd, asyn).p.then(afterLoad).then(res, rej);
+          }):
+          afterLoad(load(id, pwd, asyn));
     }
 
     var require = requireEngine.bind(undefined, 0);
